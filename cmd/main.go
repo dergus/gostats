@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/mod/modfile"
 )
@@ -16,9 +18,10 @@ func main() {
 	}
 
 	PrintModuleInfo(os.Args[1])
+	PrintFileInfo(os.Args[1])
 }
 
-// PrintModuleInfo recevies path to a directory with a go module, parses go.mod file in it
+// PrintModuleInfo receives path to a directory with a go module, parses go.mod file in it
 // and prints the module name and count of required direct modules.
 func PrintModuleInfo(path string) {
 	f, err := os.Open(path + "/go.mod")
@@ -46,4 +49,26 @@ func PrintModuleInfo(path string) {
 	}
 
 	log.Printf("Module: %s\nCount of dependencies: %d", mf.Module.Mod.Path, countOfDirectModules)
+}
+
+// PrintFileInfo receives path to a directory with a go module and prints count of go files int it and in its subdirectories recursively.
+func PrintFileInfo(path string) {
+	countOfGoFiles := 0
+	err := filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			log.Fatalf("failed to walk path %s: %v", path, err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".go" {
+			countOfGoFiles++
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("failed to walk path %s: %v", path, err)
+	}
+
+	log.Printf("Count of go files: %d", countOfGoFiles)
 }
