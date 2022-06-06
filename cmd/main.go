@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"log"
@@ -18,7 +19,9 @@ func main() {
 	}
 
 	PrintModuleInfo(os.Args[1])
+	PrintCountGoPackages(os.Args[1])
 	PrintFileInfo(os.Args[1])
+	PrintSLOCCount(os.Args[1])
 }
 
 // PrintModuleInfo receives path to a directory with a go module, parses go.mod file in it
@@ -71,4 +74,93 @@ func PrintFileInfo(path string) {
 	}
 
 	log.Printf("Count of go files: %d", countOfGoFiles)
+}
+
+// PrintSLOCCount receives path to a directory with a go module and prints count of lines of Go code in it and in its subdirectories recursively.
+func PrintSLOCCount(path string) {
+	countOfSLOC := 0
+	err := filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			log.Fatalf("failed to walk path %s: %v", path, err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".go" {
+			countOfSLOC += CountSLOC(path)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("failed to walk path %s: %v", path, err)
+	}
+
+	log.Printf("Count of lines of code: %s", FormatNum(countOfSLOC))
+}
+
+// CountSLOC receives path to a go file and returns count of lines of Go code in it.
+func CountSLOC(path string) int {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Fatalf("failed to open file %s: %v", path, err)
+	}
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		log.Fatalf("failed to read file %s: %v", path, err)
+	}
+
+	return CountSLOCFromData(data)
+}
+
+// CountSLOCFromData receives data of a go file and returns count of lines of Go code in it.
+func CountSLOCFromData(data []byte) int {
+	countOfSLOC := 0
+	for _, b := range data {
+		if b == '\n' {
+			countOfSLOC++
+		}
+	}
+	return countOfSLOC
+}
+
+// FormatNum formats a digital number in a way that it is readable by humans.
+func FormatNum(num int) string {
+	if num < 1000 {
+		return fmt.Sprintf("%d", num)
+	}
+	if num < 1000000 {
+		return fmt.Sprintf("%.1fK", float64(num)/1000)
+	}
+	if num < 1000000000 {
+		return fmt.Sprintf("%.1fM", float64(num)/1000000)
+	}
+	return fmt.Sprintf("%.1fB", float64(num)/1000000000)
+}
+
+// PrintCountGoPackages receives path to a directory with a go module and prints count of Go packages in it and in its subdirectories recursively.
+func PrintCountGoPackages(path string) {
+	seenPackages := make(map[string]struct{})
+	err := filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			log.Fatalf("failed to walk path %s: %v", path, err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".go" {
+			return nil
+		}
+		dirName := filepath.Dir(path)
+		seenPackages[dirName] = struct{}{}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Fatalf("failed to walk path %s: %v", path, err)
+	}
+
+	log.Printf("Count of Go packages: %d", len(seenPackages))
 }
